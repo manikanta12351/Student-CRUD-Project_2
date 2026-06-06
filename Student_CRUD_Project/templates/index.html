@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Student Management System with SQLite Database.">
+    <title>Student Management System</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Boxicons CDN for modern design icons -->
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <!-- Toast Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="toast-container" id="toast-container">
+          {% for category, message in messages %}
+            <div class="toast {{ category }}" id="toast-{{ loop.index }}">
+              <div class="toast-content" style="display: flex; align-items: center; gap: 10px;">
+                {% if category == 'success' %}
+                  <i class="bx bx-check-circle" style="color: #10b981; font-size: 20px;"></i>
+                {% else %}
+                  <i class="bx bx-error-circle" style="color: #ef4444; font-size: 20px;"></i>
+                {% endif %}
+                <span class="toast-message">{{ message }}</span>
+              </div>
+              <button class="toast-close" onclick="this.parentElement.remove()" id="close-toast-{{ loop.index }}">&times;</button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="app-container">
+        
+        <!-- Header -->
+        <header class="dashboard-header">
+            <h1 class="dashboard-title">🎯 Student Management System</h1>
+        </header>
+
+        <!-- Input Section Form Container -->
+        <section class="form-section">
+            {% if edit_student %}
+                <form action="{{ url_for('edit_student', student_id=edit_student.id) }}" method="POST" id="crud-form">
+            {% else %}
+                <form action="{{ url_for('add_student') }}" method="POST" id="crud-form">
+            {% endif %}
+                
+                <!-- Name Field -->
+                <div class="form-group">
+                    <label for="name">Name:</label>
+                    <input type="text" name="name" id="name" required placeholder="Enter student's full name" 
+                           class="form-input" value="{{ edit_student.name if edit_student else '' }}" autocomplete="off">
+                </div>
+
+                <!-- Age Field -->
+                <div class="form-group">
+                    <label for="age">Age:</label>
+                    <input type="number" name="age" id="age" required placeholder="Enter student's age" 
+                           class="form-input" value="{{ edit_student.age if edit_student else '' }}" min="1" max="120">
+                </div>
+
+                <!-- Form Action Buttons -->
+                <div class="form-actions">
+                    {% if edit_student %}
+                        <button type="submit" class="btn-submit" id="btn-submit-form">
+                            <i class="bx bx-check"></i> Update User
+                        </button>
+                        <a href="{{ url_for('index') }}" class="btn-cancel" id="btn-cancel-edit">
+                            Cancel
+                        </a>
+                    {% else %}
+                        <button type="submit" class="btn-submit" id="btn-submit-form">
+                            <i class="bx bx-plus"></i> Add User
+                        </button>
+                    {% endif %}
+                </div>
+            </form>
+        </section>
+
+        <!-- Table Listing Section -->
+        <main class="table-container">
+            <table class="students-table" id="students-table">
+                <thead>
+                    <tr>
+                        <th style="width: 10%;">ID</th>
+                        <th style="width: 55%;">Name</th>
+                        <th style="width: 15%;">Age</th>
+                        <th style="width: 20%;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if students %}
+                        {% for student in students %}
+                            <tr>
+                                <td>{{ student.id }}</td>
+                                <td>{{ student.name }}</td>
+                                <td>{{ student.age }}</td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <a href="{{ url_for('index', edit=student.id) }}" class="btn-action edit" id="edit-btn-{{ student.id }}">
+                                            <i class="bx bx-edit"></i> Edit
+                                        </a>
+                                        <button type="button" class="btn-action delete" onclick="openDeleteModal('{{ student.id }}', '{{ student.name | escape }}')" id="delete-btn-{{ student.id }}">
+                                            <i class="bx bx-trash"></i> Delete
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: #9ca3af; padding: 30px;">
+                                No records found. Add a user above to get started.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </main>
+
+        <!-- Bottom Metadata Box -->
+        <footer class="metadata-box">
+            <div class="metadata-item">
+                <span>💾</span> <span><strong>Database:</strong> SQLite - Persistent storage</span>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Confirm Delete Modal Overlay -->
+    <div class="modal-overlay" id="delete-modal" aria-hidden="true" role="dialog" aria-labelledby="modal-title">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-icon-container">
+                    <i class="bx bx-error"></i>
+                </div>
+                <h2 id="modal-title">Confirm Delete</h2>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to permanently delete <strong id="delete-student-name"></strong>?</p>
+                <p class="warning-subtext">This action cannot be undone and will delete all student metadata.</p>
+            </div>
+            <div class="modal-footer">
+                <form id="delete-form" method="POST" action="">
+                    <button type="button" class="btn btn-cancel" onclick="closeDeleteModal()" id="btn-cancel-delete" style="padding: 8px 16px;">Cancel</button>
+                    <button type="submit" class="btn-danger" id="btn-confirm-delete">Delete Record</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts for Modals and Toast dismissal -->
+    <script>
+        // Modal Logic
+        function openDeleteModal(studentId, studentName) {
+            const modal = document.getElementById('delete-modal');
+            const nameSpan = document.getElementById('delete-student-name');
+            const form = document.getElementById('delete-form');
+            
+            nameSpan.textContent = studentName;
+            form.action = "/delete/" + studentId;
+            modal.classList.add('active');
+            modal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeDeleteModal() {
+            const modal = document.getElementById('delete-modal');
+            modal.classList.remove('active');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        // Auto-dismiss toast notifications after 4 seconds
+        document.addEventListener('DOMContentLoaded', () => {
+            const toasts = document.querySelectorAll('.toast');
+            toasts.forEach(toast => {
+                setTimeout(() => {
+                    toast.style.animation = 'slideOut 0.4s cubic-bezier(0.68, -0.6, 0.32, 1.6) forwards';
+                    setTimeout(() => toast.remove(), 400);
+                }, 4000);
+            });
+        });
+    </script>
+</body>
+</html>
